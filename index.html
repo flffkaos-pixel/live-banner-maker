@@ -106,7 +106,7 @@ input:focus,textarea:focus{border-color:var(--red)}
 </style>
 </head>
 <body>
-<div class="top"><div class="dot"></div><div class="logo">LIVE BANNER <span>STUDIO</span></div><div style="margin-left:auto" class="pill">1080 × 1920 · v19</div></div>
+<div class="top"><div class="dot"></div><div class="logo">LIVE BANNER <span>STUDIO</span></div><div style="margin-left:auto" class="pill">1080 × 1920 · v20</div></div>
 
 <div class="hero">
 <h1 id="heroTitle">URL만 붙여넣으면,<br><em>라이브 배너가 바로 완성</em>돼.</h1>
@@ -297,7 +297,10 @@ input:focus,textarea:focus{border-color:var(--red)}
 
 <script>
 const $=id=>document.getElementById(id);
-const px=s=>(!s||s.startsWith('blob:')||s.startsWith('data:'))?s:'/proxy?u='+encodeURIComponent(s);
+// 백엔드(추출/프록시) 주소: 로컬 서버·터널에서는 상대경로, GitHub Pages 등 정적 호스팅에서는 로컬 서버(127.0.0.1:8090)를 바라본다.
+const API_BASE=(new URLSearchParams(location.search).get('api'))||(/\.github\.io$/i.test(location.hostname)?'http://127.0.0.1:8090':'');
+const ax=p=>API_BASE+(p[0]==='/'?p:'/'+p);
+const px=s=>(!s||s.startsWith('blob:')||s.startsWith('data:'))?s:ax('/proxy?u='+encodeURIComponent(s));
 const stripType=u=>u?u.replace(/([?&])type=[^&]*(&)?/g,(m,a,b)=>b?a:''):u;
 const toast=m=>{const t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._x);t._x=setTimeout(()=>t.classList.remove('show'),2600);};
 const say=m=>{const l=$('log');if(l.textContent.startsWith('대기중'))l.textContent='';l.textContent+=m+'\n';l.scrollTop=1e9;};
@@ -444,7 +447,7 @@ async function autoProduct(){
   let d=null,reason='';
   try{
     bar(.15);say('🤖 진짜 크롬으로 여는 중… 네이버 로그인 창이 뜨면 그 창에서 로그인해줘 (20~60초)');
-    const r=await fetch('/extract?u='+encodeURIComponent(url));
+    const r=await fetch(ax('/extract?u='+encodeURIComponent(url)));
     if(r.ok){
       const j=await r.json().catch(()=>null);
       if(j&&j.log)say(String(j.log).trim().split('\n').slice(-5).join('\n'));
@@ -642,13 +645,13 @@ async function diag(){
   L.push('접속: '+location.protocol+'//'+(location.host||'(없음)'));
   if(location.protocol==='file:')L.push('⚠ 파일을 직접 더블클릭으로 열었어! 주소창에 http://localhost:8090/index.html?v=7 입력해서 열어줘');
   try{
-    const r=await fetch('data.json?_='+Date.now());
+    const r=await fetch(ax('data.json?_='+Date.now()));
     if(r.ok){const d=await r.json();L.push('데이터: 이미지 '+((d.imgs||[]).length)+'장');}
     else L.push('✘ data.json 없음(상태 '+r.status+') → extract.py를 먼저 실행해줘');
   }catch(e){L.push('✘ data.json 읽기 실패 → 서버(serve.py)가 꺼져있을 수 있어');}
   const first=(items[0]||{}).src||'';
   if(first&&first.indexOf('blob:')!==0&&first.indexOf('data:')!==0){
-    try{const t0=Date.now();const r=await fetch('/proxy?u='+encodeURIComponent(first));
+    try{const t0=Date.now();const r=await fetch(ax('/proxy?u='+encodeURIComponent(first)));
       L.push(r.ok?('이미지서버 OK ('+(Date.now()-t0)+'ms)'):'✘ 이미지서버 응답 '+r.status+' → serve.py 재시작 필요');
     }catch(e){L.push('✘ 이미지서버 연결 실패 → serve.py가 안 돌고 있어');}
   }else{L.push('이미지 0장: 추출기로 먼저 가져와줘');}
@@ -672,7 +675,7 @@ function applyData(d){
 }
 async function loadLocal(){
   try{
-    const r=await fetch('data.json?_='+Date.now());
+    const r=await fetch(ax('data.json?_='+Date.now()));
     if(!r.ok)return false;
     const d=await r.json();
     if(!(d&&d.imgs&&d.imgs.length))return false;
@@ -692,7 +695,7 @@ function load(src){
   const one=(u,ms)=>timed(fin=>{const im=new Image();im.crossOrigin='anonymous';im.onload=()=>fin(im);im.onerror=()=>fin(null);im.src=u;},ms);
   const p=(async()=>{
     if(src.indexOf('blob:')!==0&&src.indexOf('data:')!==0){
-      try{const a=await one('/proxy?u='+encodeURIComponent(src),12000);if(a)return a;}catch(e){}
+      try{const a=await one(ax('/proxy?u='+encodeURIComponent(src)),12000);if(a)return a;}catch(e){}
     }
     const b=await one(prox,8000);if(b)return b;return await one(src,8000);})();
   cache[src]=p;return p;
