@@ -106,7 +106,7 @@ input:focus,textarea:focus{border-color:var(--red)}
 </style>
 </head>
 <body>
-<div class="top"><div class="dot"></div><div class="logo">LIVE BANNER <span>STUDIO</span></div><div style="margin-left:auto" class="pill">1080 × 1920 · v20</div></div>
+<div class="top"><div class="dot"></div><div class="logo">LIVE BANNER <span>STUDIO</span></div><div style="margin-left:auto" class="pill">1080 × 1920 · v21</div></div>
 
 <div class="hero">
 <h1 id="heroTitle">URL만 붙여넣으면,<br><em>라이브 배너가 바로 완성</em>돼.</h1>
@@ -297,8 +297,16 @@ input:focus,textarea:focus{border-color:var(--red)}
 
 <script>
 const $=id=>document.getElementById(id);
-// 백엔드(추출/프록시) 주소: 로컬 서버·터널에서는 상대경로, GitHub Pages 등 정적 호스팅에서는 로컬 서버(127.0.0.1:8090)를 바라본다.
-const API_BASE=(new URLSearchParams(location.search).get('api'))||(/\.github\.io$/i.test(location.hostname)?'http://127.0.0.1:8090':'');
+// 백엔드(추출/프록시) 주소
+//  - 로컬 서버/터널에서 열면 상대경로
+//  - GitHub Pages 같은 정적 호스팅에서는 Cloudflare 터널 주소를 쓴다
+//    (브라우저가 https 페이지 → http://localhost 접근을 막기 때문)
+//    ?api=https://xxx.trycloudflare.com 로 바꿀 수 있고, 한 번 넣으면 저장된다.
+const DEFAULT_TUNNEL='https://proceeding-views-endif-yale.trycloudflare.com';
+const QS=new URLSearchParams(location.search);
+if(QS.get('api')){try{localStorage.setItem('apiBase',QS.get('api'));}catch(e){}}
+const STATIC_HOST=/\.github\.io$|\.pages\.dev$|\.netlify\.app$|\.vercel\.app$/i.test(location.hostname);
+const API_BASE=QS.get('api')||(STATIC_HOST?((()=>{try{return localStorage.getItem('apiBase')||DEFAULT_TUNNEL;}catch(e){return DEFAULT_TUNNEL;}})()):'');
 const ax=p=>API_BASE+(p[0]==='/'?p:'/'+p);
 const px=s=>(!s||s.startsWith('blob:')||s.startsWith('data:'))?s:ax('/proxy?u='+encodeURIComponent(s));
 const stripType=u=>u?u.replace(/([?&])type=[^&]*(&)?/g,(m,a,b)=>b?a:''):u;
