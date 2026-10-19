@@ -1,0 +1,18 @@
+# 로그인 프로필(쿠키 포함) — 절대 올리지 않음
+chrome-profile/
+
+# 추출 결과물(로컬 상태)
+data.json
+
+# 레퍼런스 이미지(로컬 전용)
+ref/
+refview/
+
+# 파이썬 캐시
+__pycache__/
+*.pyc
+
+# OS
+Thumbs.db
+desktop.ini
+.DS_Store
