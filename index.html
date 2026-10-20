@@ -106,7 +106,7 @@ input:focus,textarea:focus{border-color:var(--red)}
 </style>
 </head>
 <body>
-<div class="top"><div class="dot"></div><div class="logo">LIVE BANNER <span>STUDIO</span></div><div style="margin-left:auto" class="pill">1080 × 1920 · v21</div></div>
+<div class="top"><div class="dot"></div><div class="logo">LIVE BANNER <span>STUDIO</span></div><div style="margin-left:auto" class="pill">1080 × 1920 · v22</div></div>
 
 <div class="hero">
 <h1 id="heroTitle">URL만 붙여넣으면,<br><em>라이브 배너가 바로 완성</em>돼.</h1>
@@ -121,6 +121,17 @@ input:focus,textarea:focus{border-color:var(--red)}
 <button class="btn-go" id="btnGo">⚡ 배너 자동 생성</button>
 </div>
 <button class="btn-sub" id="btnDemo">테스트가 급하면? 샘플로 바로 만들기 →</button>
+<details class="bkm">
+<summary>🖐 이미지 직접 넣기 — 개발자도구 URL 붙여넣기 / 다운로드한 파일 올리기 (서버 없이도 OK)</summary>
+<div class="howto">
+<div class="mini">① 상품 페이지에서 상세까지 스크롤 → 이미지 <b>우클릭 → 이미지 주소 복사</b> → 아래에 한 줄에 하나씩 붙여넣기</div>
+<textarea id="manualUrls" spellcheck="false" placeholder="https://shop-phinf.pstatic.net/20261014_130/....png&#10;https://shop-phinf.pstatic.net/....jpg" style="width:100%;min-height:92px;margin:8px 0;background:#0b0f14;color:#e8eef5;border:1px solid #24303c;border-radius:10px;padding:10px;font:12.5px/1.45 ui-monospace,Consolas,monospace;resize:vertical"></textarea>
+<button class="btn-sub" id="btnManualUrls">이 URL들로 반배너 만들기 →</button>
+<div class="mini" style="margin-top:14px">② 또는 다운로드(또는 드래그)한 이미지 파일을 선택</div>
+<input id="manualFiles" type="file" accept="image/*" multiple style="margin-top:6px">
+<div class="mini" id="manualMsg" style="margin-top:8px"></div>
+</div>
+</details>
 <details class="bkm">
 <summary>🤖 프록시도 막히면? 상품 페이지에서 상세이미지 직접 가져오기 (봇차단 원천 우회)</summary>
 <div class="howto">
@@ -308,7 +319,7 @@ if(QS.get('api')){try{localStorage.setItem('apiBase',QS.get('api'));}catch(e){}}
 const STATIC_HOST=/\.github\.io$|\.pages\.dev$|\.netlify\.app$|\.vercel\.app$/i.test(location.hostname);
 const API_BASE=QS.get('api')||(STATIC_HOST?((()=>{try{return localStorage.getItem('apiBase')||DEFAULT_TUNNEL;}catch(e){return DEFAULT_TUNNEL;}})()):'');
 const ax=p=>API_BASE+(p[0]==='/'?p:'/'+p);
-const px=s=>(!s||s.startsWith('blob:')||s.startsWith('data:'))?s:ax('/proxy?u='+encodeURIComponent(s));
+const px=s=>(!s||s.startsWith('blob:')||s.startsWith('data:'))?s:(STATIC_HOST?'https://images.weserv.nl/?url='+encodeURIComponent(s.replace(/^https?:\/\//,'')):ax('/proxy?u='+encodeURIComponent(s)));
 const stripType=u=>u?u.replace(/([?&])type=[^&]*(&)?/g,(m,a,b)=>b?a:''):u;
 const toast=m=>{const t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._x);t._x=setTimeout(()=>t.classList.remove('show'),2600);};
 const say=m=>{const l=$('log');if(l.textContent.startsWith('대기중'))l.textContent='';l.textContent+=m+'\n';l.scrollTop=1e9;};
@@ -421,6 +432,65 @@ $('btnDemo').onclick=()=>{
   }
 };
 $('btnRe').onclick=()=>{const on=items.filter(x=>x.on);if(on.length<2)return toast('이미지가 1장뿐이야');items.push(items.shift());paintStrip();draw();toast('메인 이미지 변경됨');};
+// ---------- 이미지 직접 넣기(서버 없이): 개발자도구 URL 붙여넣기 / 파일 올리기 ----------
+// 넣은 이미지 1장 = 반배너 1장 (1920 넘으면 자동 분할). 위 정렬·아래 투명.
+async function buildFromImages(srcList){
+  if(mode!=='crop')setMode('crop');
+  const box=$('cpieces'),head=$('cpieHead');
+  head.style.display='flex';box.classList.add('on');
+  box.innerHTML='<div class="gcard busy"><div class="glabel">반배너 만드는 중…</div><div class="stat">넣은 이미지 순서대로 자르는 중</div></div>';
+  say('🎬 넣은 이미지 순서대로 반배너 제작 중…');
+  const W=1080,CH=1920;
+  const imgs=[];
+  for(const s of srcList){const im=await load(s);if(im&&im.naturalWidth)imgs.push(im);}
+  if(!imgs.length){box.innerHTML='<div class="gcard"><div class="glabel">이미지 없음</div><div class="stat">URL/파일을 확인해줘</div></div>';return;}
+  cropPieces=[];box.innerHTML='';let n=0;
+  for(const im of imgs){
+    const h=Math.round(im.naturalHeight*(W/im.naturalWidth));
+    const steps=Math.max(1,Math.ceil(h/CH));
+    for(let k=0;k<steps;k++){
+      const a=h*k/steps,b=h*(k+1)/steps,rh=Math.min(CH,Math.round(b-a));
+      const off=document.createElement('canvas');off.width=W;off.height=CH;const oc=off.getContext('2d');
+      oc.clearRect(0,0,W,CH);
+      const sy=a/h*im.naturalHeight,shh=(b-a)/h*im.naturalHeight;
+      try{oc.drawImage(im,0,sy,im.naturalWidth,shh,0,0,W,rh);}catch(e){}
+      let url='';try{url=off.toDataURL('image/png');}catch(e){}
+      const idx=n++;
+      const fn='banner-'+String(idx+1).padStart(2,'0')+'-1080x1920';
+      cropPieces.push({url,fn,sel:false});
+      const card=document.createElement('div');card.className='gcard';card.dataset.i=idx;
+      card.innerHTML=`<div class="glabel">반배너 ${idx+1}</div><div class="pchk">☐</div><img alt="반배너 ${idx+1}" src="${url}"><button class="gdown">⬇ 저장</button>`;
+      const toggle=()=>{const p=cropPieces[idx];p.sel=!p.sel;card.classList.toggle('sel',p.sel);card.querySelector('.pchk').textContent=p.sel?'☑':'☐';};
+      card.querySelector('.pchk').onclick=(e)=>{e.stopPropagation();toggle();};
+      card.querySelector('img').onclick=(e)=>{e.stopPropagation();toggle();};
+      card.querySelector('.gdown').onclick=(e)=>{e.stopPropagation();const aa=document.createElement('a');aa.href=url;aa.download=fn+'.png';aa.click();toast('반배너 '+(idx+1)+' 저장 🎉');};
+      box.appendChild(card);
+      if(idx%2===1)await new Promise(r=>setTimeout(r,0));
+    }
+  }
+  toast('반배너 '+n+'장 완성! 마음에 드는 것만 체크해서 저장해 🎬');
+  say('✔ 반배너 '+n+'장 완성 (이미지 '+imgs.length+'장 → '+n+'배너)');
+  box.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+async function useManualImages(srcs){
+  const seen=new Set(),list=[];
+  for(const s of srcs){if(s&&!seen.has(s)){seen.add(s);list.push(s);}}
+  if(!list.length){toast('이미지가 없어');return;}
+  const msg=$('manualMsg');if(msg)msg.textContent='이미지 '+list.length+'장 불러오는 중…';
+  setItems(list);bar(1);draw();
+  try{await buildFromImages(list);if(msg)msg.textContent='✔ '+list.length+'장으로 반배너 생성 완료';}
+  catch(e){if(msg)msg.textContent='✘ 실패: '+e.message;}
+}
+$('btnManualUrls').onclick=()=>{
+  const raw=($('manualUrls').value||'');
+  const urls=raw.split(/[\s,"'<>]+/).map(s=>s.trim()).filter(s=>/^https?:\/\//i.test(s));
+  if(!urls.length)return toast('이미지 URL을 한 줄에 하나씩 붙여넣어줘');
+  useManualImages(urls);
+};
+$('manualFiles').onchange=(e)=>{
+  const fs=[...e.target.files];if(!fs.length)return;
+  useManualImages(fs.map(f=>URL.createObjectURL(f)));
+};
 // 스마트스토어 내부 상품 API (깃헙 리버스엔지니어링 기법): 상세이미지 포함 JSON
 async function tryDetailApi(url){
   const m=url.match(/smartstore\.naver\.com\/([^\/\?#]+)\/products\/(\d+)/);
