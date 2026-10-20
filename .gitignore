@@ -3,6 +3,7 @@ chrome-profile/
 
 # 추출 결과물(로컬 상태)
 data.json
+.lastrun.json
 
 # 레퍼런스 이미지(로컬 전용)
 ref/

@@ -9,8 +9,10 @@
 결과: 같은 폴더의 data.json (스튜디오가 자동 로드)
 """
 import json
+import random
 import re
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).parent
@@ -157,6 +159,85 @@ def scroll_all(pg, rounds=16):
     pg.wait_for_timeout(700)
 
 
+def human_scroll(pg, rounds=30):
+    """마우스 휠을 불규칙한 속도/간격으로 굴려 사람처럼 스크롤 (기계적 scrollTo 탐지 회피)"""
+    try:
+        pg.mouse.move(random.randint(250, 900), random.randint(160, 520))
+    except Exception:
+        pass
+    for i in range(rounds):
+        try:
+            pg.mouse.wheel(0, random.choice([420, 560, 700, 860, 1040, 1280]) + random.randint(-80, 80))
+        except Exception:
+            pass
+        if i % 5 == 0:                      # 내부 스크롤 영역(iframe/모달)도 가끔 훑기
+            for fr in pg.frames:
+                try:
+                    fr.evaluate(SCROLL_JS)
+                except Exception:
+                    pass
+        pg.wait_for_timeout(random.randint(140, 460))
+        if random.random() < 0.18:          # 가끔 읽는 척 멈춤
+            pg.wait_for_timeout(random.randint(700, 1700))
+    try:
+        pg.evaluate("window.scrollTo(0,0)")
+    except Exception:
+        pass
+    pg.wait_for_timeout(random.randint(500, 900))
+
+
+def warm_up(pg, url):
+    """상품 URL로 곧바로 직행하지 않고 사이트 첫 화면을 먼저 둘러봄 (자연스러운 동선)"""
+    try:
+        if "naver.com" in url:
+            home = "https://www.naver.com/"
+        elif "kakao.com" in url:
+            home = "https://store.kakao.com/"
+        else:
+            return
+        pg.goto(home, timeout=30000, wait_until="domcontentloaded")
+        pg.wait_for_timeout(random.randint(900, 1800))
+        pg.mouse.move(random.randint(300, 900), random.randint(150, 450))
+        for _ in range(random.randint(2, 4)):
+            pg.mouse.wheel(0, random.randint(180, 520))
+            pg.wait_for_timeout(random.randint(200, 520))
+    except Exception:
+        pass
+
+
+def looks_blocked(pg):
+    """'자동화 의심'류 차단/캡차 화면인지 대략 판별"""
+    try:
+        t = pg.evaluate("document.body ? document.body.innerText.slice(0,2500) : ''") or ""
+    except Exception:
+        return False
+    if len(t) > 3500:
+        return False
+    return bool(re.search(r"자동화|비정상적인 접근|접근이 제한|잠시 후 다시|보안\s?확인|captcha|로봇", t, re.I))
+
+
+STAMP = ROOT / ".lastrun.json"
+
+
+def pace(url):
+    """같은 사이트 연속 요청 간격을 띄워 '기계적 반복' 신호를 줄임"""
+    host = re.sub(r"^https?://([^/]+).*$", r"\1", url)
+    try:
+        d = json.loads(STAMP.read_text(encoding="utf-8"))
+    except Exception:
+        d = {}
+    gap = random.uniform(6, 11)
+    if d.get("host") == host:
+        wait = gap - (time.time() - float(d.get("ts") or 0))
+        if 0 < wait:
+            print(f"연속 요청 완화를 위해 {wait:.0f}초 대기…")
+            time.sleep(wait)
+    try:
+        STAMP.write_text(json.dumps({"host": host, "ts": time.time()}), encoding="utf-8")
+    except Exception:
+        pass
+
+
 def try_api(pg, url):
     """네이버 스마트스토어/브랜드스토어 내부 API로 상세이미지 확보 (매우 신뢰도 높음)"""
     m = re.search(r"(?:smartstore|brand|m)\.naver\.com/([^/?#]+)/products/(\d+)", url)
@@ -212,6 +293,8 @@ def main():
         print("URL이 이상해. http로 시작해야 돼.")
         return
 
+    pace(url)
+
     from playwright.sync_api import sync_playwright
     print("크롬 여는 중 (사람처럼 열어서 봇차단 우회)…")
     api_meta = {}
@@ -224,11 +307,31 @@ def main():
             user_agent=UA,
             viewport={"width": 1366, "height": 900},
             locale="ko-KR",
-            args=["--disable-blink-features=AutomationControlled"],
+            timezone_id="Asia/Seoul",
+            ignore_default_args=["--enable-automation"],
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--no-first-run",
+                "--no-default-browser-check",
+                "--disable-infobars",
+            ],
         )
         pg = ctx.pages[0] if ctx.pages else ctx.new_page()
+        try:
+            print("웹드라이버 흔적:", pg.evaluate("navigator.webdriver"))
+        except Exception:
+            pass
+        warm_up(pg, url)
         pg.goto(url, timeout=60000, wait_until="domcontentloaded")
-        pg.wait_for_timeout(3500)
+        pg.wait_for_timeout(random.randint(2600, 4600))
+
+        # 차단 화면이면 잠깐 쉬었다가 첫 화면부터 다시 (연속 직행 패턴 완화)
+        if looks_blocked(pg):
+            print("차단/보안 화면 감지 → 잠시 대기 후 재시도…")
+            pg.wait_for_timeout(random.randint(8000, 14000))
+            warm_up(pg, url)
+            pg.goto(url, timeout=60000, wait_until="domcontentloaded")
+            pg.wait_for_timeout(random.randint(3000, 5000))
 
         # 실제 네이버 로그인 페이지로 튕긴 경우 → 로그인 대기 (전용 프로필에 저장됨)
         login_wait = False
@@ -252,11 +355,11 @@ def main():
 
         print("상세 펼치기 + 끝까지 스크롤 중… (상세컷 lazy로딩 유도)")
         click_more(pg)
-        scroll_all(pg, 26)
+        human_scroll(pg, 30)
         raw = collect_all(pg)
         if len(raw) < 4:                     # 부족하면 한 번 더 (일부 사이트는 늦게 로딩)
             click_more(pg)
-            scroll_all(pg, 14)
+            human_scroll(pg, 16)
             extra = collect_all(pg)
             _seen = {d.get("u") for d in raw}
             raw += [d for d in extra if d.get("u") not in _seen]
