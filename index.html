@@ -106,7 +106,7 @@ input:focus,textarea:focus{border-color:var(--red)}
 </style>
 </head>
 <body>
-<div class="top"><div class="dot"></div><div class="logo">LIVE BANNER <span>STUDIO</span></div><div style="margin-left:auto" class="pill">1080 × 1920 · v25</div></div>
+<div class="top"><div class="dot"></div><div class="logo">LIVE BANNER <span>STUDIO</span></div><div style="margin-left:auto" class="pill">1080 × 1920 · v26</div></div>
 
 <div class="hero">
 <h1 id="heroTitle">URL만 붙여넣으면,<br><em>라이브 배너가 바로 완성</em>돼.</h1>
@@ -410,12 +410,14 @@ async function fetchHtml(url,note){
   ];
   for(let i=0;i<P.length;i++){
     try{say(`프록시 ${i+1}/3 시도중…`);bar(.1+.2*i);
-      const r=await fetch(P[i](url));if(!r.ok)throw new Error('HTTP '+r.status);
+      const ac=new AbortController();const to=setTimeout(()=>ac.abort(),8000);
+      const r=await fetch(P[i](url),{signal:ac.signal});clearTimeout(to);
+      if(!r.ok)throw new Error('HTTP '+r.status);
       const t=await r.text();let html=t;
       try{const j=JSON.parse(t);if(j.contents)html=j.contents;}catch{}
       if(html&&html.length>3000)return html;
       throw new Error('빈 응답');
-    }catch(e){say(' ↳ 실패: '+e.message);}
+    }catch(e){say(' ↳ 실패: '+(e.name==='AbortError'?'시간초과':e.message));}
   }
   throw new Error('proxy-fail');
 }
