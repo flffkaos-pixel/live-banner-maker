@@ -106,7 +106,7 @@ input:focus,textarea:focus{border-color:var(--red)}
 </style>
 </head>
 <body>
-<div class="top"><div class="dot"></div><div class="logo">LIVE BANNER <span>STUDIO</span></div><div style="margin-left:auto" class="pill">1080 × 1920 · v26</div></div>
+<div class="top"><div class="dot"></div><div class="logo">LIVE BANNER <span>STUDIO</span></div><div style="margin-left:auto" class="pill">1080 × 1920 · v27</div></div>
 
 <div class="hero">
 <h1 id="heroTitle">URL만 붙여넣으면,<br><em>라이브 배너가 바로 완성</em>돼.</h1>
@@ -1330,7 +1330,9 @@ async function buildFullBanner(all){
 }
 // 초기값
 setItems(['https://shop-phinf.pstatic.net/20250328_297/1743129470247QONG1_JPEG/13503891368598083_1463887557.jpg']);
-seedSampleReviews();buildBookmarklet();$('studioUrl').oninput=buildBookmarklet;importFromHash();syncStyleFields();setMode('crop');loadLocal().then(ok=>{draw();diag();if(ok)buildFullBanner();});
+seedSampleReviews();
+if(!/^(localhost|127\.0\.0\.1)$/i.test(location.hostname)&&/localhost:8090/.test($('studioUrl').value))$('studioUrl').value=location.origin+location.pathname;
+buildBookmarklet();$('studioUrl').oninput=buildBookmarklet;importFromHash();syncStyleFields();setMode('crop');loadLocal().then(ok=>{draw();diag();if(ok)buildFullBanner();});
 </script>
 </body>
 </html>
