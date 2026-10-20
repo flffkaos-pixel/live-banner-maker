@@ -106,7 +106,7 @@ input:focus,textarea:focus{border-color:var(--red)}
 </style>
 </head>
 <body>
-<div class="top"><div class="dot"></div><div class="logo">LIVE BANNER <span>STUDIO</span></div><div style="margin-left:auto" class="pill">1080 × 1920 · v23</div></div>
+<div class="top"><div class="dot"></div><div class="logo">LIVE BANNER <span>STUDIO</span></div><div style="margin-left:auto" class="pill">1080 × 1920 · v24</div></div>
 
 <div class="hero">
 <h1 id="heroTitle">URL만 붙여넣으면,<br><em>라이브 배너가 바로 완성</em>돼.</h1>
@@ -454,9 +454,10 @@ $('manualFiles').onchange=(e)=>{
 };
 // 스마트스토어 내부 상품 API (깃헙 리버스엔지니어링 기법): 상세이미지 포함 JSON
 async function tryDetailApi(url){
-  const m=url.match(/smartstore\.naver\.com\/([^\/\?#]+)\/products\/(\d+)/);
+  const m=url.match(/(?:smartstore|brand|m)\.naver\.com\/([^\/\?#]+)\/products\/(\d+)/);
   if(!m)return null;
-  const api='https://smartstore.naver.com/i/v1/stores/'+m[1]+'/products/'+m[2];
+  const host=(url.match(/(?:smartstore|brand|m)\.naver\.com/)||['smartstore.naver.com'])[0];
+  const api='https://'+host+'/i/v1/stores/'+m[1]+'/products/'+m[2];
   say('내부 상품 API 시도중… (상세 포함)');
   const P=[u=>'https://api.allorigins.win/get?url='+encodeURIComponent(u),u=>'https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(u)];
   for(const f of P){
@@ -468,13 +469,14 @@ async function tryDetailApi(url){
       const imgs=[];const push=u=>{const c=u&&clean(u);if(c)imgs.push(c);};
       (d.productImages||d.images||[]).forEach(x=>{push(typeof x==='string'?x:(x.url||x.imageUrl));});
       const dc=d.detailContent||d.detail||'';
-      if(dc){const re=/(https?:\/\/[^\s"'<>]+\.(?:jpg|jpeg|png|webp)[^\s"'<>]*)/gi;let mm;while((mm=re.exec(dc)))push(mm[1]);}
+      if(dc){const re=/(https?:\/\/[^\s"'<>]+\.(?:jpg|jpeg|png|webp)[^\s"'<>]*)/gi;let mm;while((mm=re.exec(dc)))push(mm[1]);
+        const re2=/(https?:\/\/shop-phinf\.pstatic\.net[^\s"'<>"']+)/gi;let m2;while((m2=re2.exec(dc)))push(m2[1]);}
       const sub=d.product||{};
       const name=d.productName||d.name||sub.name||sub.productName||'';
       const sp=d.salePrice||d.price||sub.salePrice;
       const dp=d.discountedPrice||d.discountPrice||sub.discountedPrice;
       const fmt=v=>(v===undefined||v===null||v==='')?'':(Number(v).toLocaleString()+'원');
-      if(imgs.length||name)return {imgs:[...new Set(imgs)].slice(0,30),title:String(name),price:fmt(sp),price2:fmt(dp)};
+      if(imgs.length||name)return {imgs:[...new Set(imgs)].slice(0,60),title:String(name),price:fmt(sp),price2:fmt(dp)};
     }catch(e){}
   }
   return null;
@@ -499,6 +501,23 @@ async function autoProduct(){
     }else if(r.status===504){reason='시간 초과(페이지가 너무 오래 걸림)';}
     else{reason='추출 실패('+r.status+')';}
   }catch(e){reason='로컬 서버 응답 없음 — serve.py(스튜디오 서버)가 켜져 있는지 확인해줘';}
+
+  // 로컬 서버/터널이 없어도: 브라우저에서 페이지를 직접 읽어 이미지 위치를 자동 수집 (개발자도구 방식)
+  if(!(d&&d.imgs&&d.imgs.length)){
+    try{
+      const api=await tryDetailApi(url);
+      if(api&&api.imgs&&api.imgs.length){d={imgs:api.imgs,title:api.title,price:api.price,price2:api.price2};say('✔ 내부 API에서 이미지 '+api.imgs.length+'장 자동 수집');}
+    }catch(e){}
+  }
+  if(!(d&&d.imgs&&d.imgs.length)){
+    try{
+      say('↳ 브라우저에서 페이지를 직접 읽어 이미지 위치 찾는 중…');
+      const html=await fetchHtml(url);
+      const p=parseProduct(html,url);
+      if(p.imgs&&p.imgs.length){d={imgs:p.imgs,title:p.title,price:p.price,price2:p.price2};say('✔ 페이지에서 이미지 '+p.imgs.length+'장 자동 수집');}
+      else reason='페이지에 쓸 만한 이미지가 없어';
+    }catch(e){reason='프록시 차단 — 아래 [이미지 직접 넣기]로 URL/파일을 넣어줘';}
+  }
 
   if(d&&d.imgs&&d.imgs.length){
     applyData(d);
