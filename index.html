@@ -106,7 +106,7 @@ input:focus,textarea:focus{border-color:var(--red)}
 </style>
 </head>
 <body>
-<div class="top"><div class="dot"></div><div class="logo">LIVE BANNER <span>STUDIO</span></div><div style="margin-left:auto" class="pill">1080 × 1920 · v24</div></div>
+<div class="top"><div class="dot"></div><div class="logo">LIVE BANNER <span>STUDIO</span></div><div style="margin-left:auto" class="pill">1080 × 1920 · v25</div></div>
 
 <div class="hero">
 <h1 id="heroTitle">URL만 붙여넣으면,<br><em>라이브 배너가 바로 완성</em>돼.</h1>
@@ -663,7 +663,7 @@ $('btnDownAll').onclick=async()=>{
 
 // ---------- 북마클릿: 상품페이지에서 상세·이벤트이미지 직접 전송 (봇차단 우회) ----------
 function buildBookmarklet(){
-  const studio=($('studioUrl').value||'').trim()||'http://localhost:8090/index.html';
+  const studio=($('studioUrl').value||'').trim()||(location.origin+location.pathname);
   const code="(function(){"
   +"var S="+JSON.stringify(studio)+";"
   +"var out=[],seen={};"
@@ -682,7 +682,7 @@ function buildBookmarklet(){
   +"var title='';try{title=(document.querySelector('meta[property=\"og:title\"]')||{}).content||document.title||'';}catch(e){}"
   +"var bt='';try{bt=document.body?document.body.innerText.slice(0,9000):'';}catch(e){}"
   +"var pr=bt.match(/\\d{1,3}(,\\d{3})+\\s*원/g)||[];"
-  +"var d={t:title,p:pr[0]||'',p2:pr[1]||'',imgs:out.slice(0,30)};"
+  +"var d={t:title,p:pr[0]||'',p2:pr[1]||'',imgs:out.slice(0,60)};"
   +"window.open(S+'#import='+encodeURIComponent(JSON.stringify(d)),'_blank');"
   +"alert('이미지 '+out.length+'장을 스튜디오로 보냈어!');"
   +"})();";
@@ -692,8 +692,9 @@ function importFromHash(){
   if(!location.hash||location.hash.indexOf('#import=')!==0)return;
   try{
     const d=JSON.parse(decodeURIComponent(location.hash.slice(8)));
+    window.__imported=true;
     applyData(d);
-    if(d.imgs&&d.imgs.length){setItems(d.imgs);say('✔ 상품페이지 직접 전송: '+d.imgs.length+'장 (상세·이벤트이미지 포함)');toast('상세이미지 '+d.imgs.length+'장 로드! 🎉');bar(1);}
+    if(d.imgs&&d.imgs.length){setItems(d.imgs);say('✔ 상품페이지 직접 전송: '+d.imgs.length+'장 → 반배너 자동 제작');toast('상세이미지 '+d.imgs.length+'장 로드! 🎉');bar(1);buildFullBanner().catch(()=>{});}
   }catch(e){say('전송 데이터 읽기 실패');}
   try{history.replaceState(null,'',location.pathname);}catch(e){}
 }
@@ -733,6 +734,7 @@ function applyData(d){
 }
 async function loadLocal(){
   try{
+    if(window.__imported)return false;
     const r=await fetch(ax('data.json?_='+Date.now()));
     if(!r.ok)return false;
     const d=await r.json();
