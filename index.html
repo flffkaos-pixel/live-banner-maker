@@ -106,7 +106,7 @@ input:focus,textarea:focus{border-color:var(--red)}
 </style>
 </head>
 <body>
-<div class="top"><div class="dot"></div><div class="logo">LIVE BANNER <span>STUDIO</span></div><div style="margin-left:auto" class="pill">1080 × 1920 · v22</div></div>
+<div class="top"><div class="dot"></div><div class="logo">LIVE BANNER <span>STUDIO</span></div><div style="margin-left:auto" class="pill">1080 × 1920 · v23</div></div>
 
 <div class="hero">
 <h1 id="heroTitle">URL만 붙여넣으면,<br><em>라이브 배너가 바로 완성</em>돼.</h1>
@@ -433,52 +433,13 @@ $('btnDemo').onclick=()=>{
 };
 $('btnRe').onclick=()=>{const on=items.filter(x=>x.on);if(on.length<2)return toast('이미지가 1장뿐이야');items.push(items.shift());paintStrip();draw();toast('메인 이미지 변경됨');};
 // ---------- 이미지 직접 넣기(서버 없이): 개발자도구 URL 붙여넣기 / 파일 올리기 ----------
-// 넣은 이미지 1장 = 반배너 1장 (1920 넘으면 자동 분할). 위 정렬·아래 투명.
-async function buildFromImages(srcList){
-  if(mode!=='crop')setMode('crop');
-  const box=$('cpieces'),head=$('cpieHead');
-  head.style.display='flex';box.classList.add('on');
-  box.innerHTML='<div class="gcard busy"><div class="glabel">반배너 만드는 중…</div><div class="stat">넣은 이미지 순서대로 자르는 중</div></div>';
-  say('🎬 넣은 이미지 순서대로 반배너 제작 중…');
-  const W=1080,CH=1920;
-  const imgs=[];
-  for(const s of srcList){const im=await load(s);if(im&&im.naturalWidth)imgs.push(im);}
-  if(!imgs.length){box.innerHTML='<div class="gcard"><div class="glabel">이미지 없음</div><div class="stat">URL/파일을 확인해줘</div></div>';return;}
-  cropPieces=[];box.innerHTML='';let n=0;
-  for(const im of imgs){
-    const h=Math.round(im.naturalHeight*(W/im.naturalWidth));
-    const steps=Math.max(1,Math.ceil(h/CH));
-    for(let k=0;k<steps;k++){
-      const a=h*k/steps,b=h*(k+1)/steps,rh=Math.min(CH,Math.round(b-a));
-      const off=document.createElement('canvas');off.width=W;off.height=CH;const oc=off.getContext('2d');
-      oc.clearRect(0,0,W,CH);
-      const sy=a/h*im.naturalHeight,shh=(b-a)/h*im.naturalHeight;
-      try{oc.drawImage(im,0,sy,im.naturalWidth,shh,0,0,W,rh);}catch(e){}
-      let url='';try{url=off.toDataURL('image/png');}catch(e){}
-      const idx=n++;
-      const fn='banner-'+String(idx+1).padStart(2,'0')+'-1080x1920';
-      cropPieces.push({url,fn,sel:false});
-      const card=document.createElement('div');card.className='gcard';card.dataset.i=idx;
-      card.innerHTML=`<div class="glabel">반배너 ${idx+1}</div><div class="pchk">☐</div><img alt="반배너 ${idx+1}" src="${url}"><button class="gdown">⬇ 저장</button>`;
-      const toggle=()=>{const p=cropPieces[idx];p.sel=!p.sel;card.classList.toggle('sel',p.sel);card.querySelector('.pchk').textContent=p.sel?'☑':'☐';};
-      card.querySelector('.pchk').onclick=(e)=>{e.stopPropagation();toggle();};
-      card.querySelector('img').onclick=(e)=>{e.stopPropagation();toggle();};
-      card.querySelector('.gdown').onclick=(e)=>{e.stopPropagation();const aa=document.createElement('a');aa.href=url;aa.download=fn+'.png';aa.click();toast('반배너 '+(idx+1)+' 저장 🎉');};
-      box.appendChild(card);
-      if(idx%2===1)await new Promise(r=>setTimeout(r,0));
-    }
-  }
-  toast('반배너 '+n+'장 완성! 마음에 드는 것만 체크해서 저장해 🎬');
-  say('✔ 반배너 '+n+'장 완성 (이미지 '+imgs.length+'장 → '+n+'배너)');
-  box.scrollIntoView({behavior:'smooth',block:'nearest'});
-}
 async function useManualImages(srcs){
   const seen=new Set(),list=[];
   for(const s of srcs){if(s&&!seen.has(s)){seen.add(s);list.push(s);}}
   if(!list.length){toast('이미지가 없어');return;}
   const msg=$('manualMsg');if(msg)msg.textContent='이미지 '+list.length+'장 불러오는 중…';
   setItems(list);bar(1);draw();
-  try{await buildFromImages(list);if(msg)msg.textContent='✔ '+list.length+'장으로 반배너 생성 완료';}
+  try{await buildFullBanner(true);if(msg)msg.textContent='✔ '+list.length+'장으로 반배너 생성 완료';}
   catch(e){if(msg)msg.textContent='✘ 실패: '+e.message;}
 }
 $('btnManualUrls').onclick=()=>{
@@ -1245,7 +1206,7 @@ function snapCut(rs,sh,H,CH,pos,y0,y1){
   if(bj<0||bsv>10)return pos;
   return bj*H/sh;
 }
-async function buildFullBanner(){
+async function buildFullBanner(all){
   if(mode!=='crop')setMode('crop');
   const box=$('cpieces'),head=$('cpieHead');
   head.style.display='flex';box.classList.add('on');
@@ -1258,10 +1219,14 @@ async function buildFullBanner(){
     if(im&&im.naturalWidth){loaded.push({im,r:im.naturalHeight/im.naturalWidth});}
   }
   if(!loaded.length){box.innerHTML='<div class="gcard"><div class="glabel">이미지 없음</div><div class="stat">URL을 다시 넣어봐</div></div>';return;}
-  // 1) 세로로 긴 상세컷만 (정사각 대표컷/배너 제외)
-  let pick=loaded.filter(o=>o.r>=1.6);
-  if(!pick.length)pick=loaded.filter(o=>o.r>=0.9).slice(0,3);
-  if(!pick.length)pick=loaded.slice(0,1);
+  // 1) 세로로 긴 상세컷만 (정사각 대표컷/배너 제외). all=true면 넣은 이미지 전부 사용
+  let pick;
+  if(all){pick=loaded;}
+  else{
+    pick=loaded.filter(o=>o.r>=1.6);
+    if(!pick.length)pick=loaded.filter(o=>o.r>=0.9).slice(0,3);
+    if(!pick.length)pick=loaded.slice(0,1);
+  }
   // 2) 폭 1080으로 맞춰 위에서부터 이어붙임 (거대 캔버스 대신 슬라이스마다 원본에서 직접 그림)
   let total=0;const sc=pick.map(o=>{const h=Math.round(o.im.naturalHeight*(W/o.im.naturalWidth));total+=h;return{im:o.im,h};});
   const H=total;
